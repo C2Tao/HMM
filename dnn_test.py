@@ -1,28 +1,14 @@
-import gnumpy as gpu
+#import gnumpy as gpu
 import numpy as np
+#from dnn import nn_layer
+import cPickle, gzip, numpy
 
+# Load the dataset
+f = gzip.open('mnist.pkl.gz', 'rb')
+train_set, valid_set, test_set = cPickle.load(f)
+f.close()
 
-n = 2
-m = 3
-
-
-a = np.random.uniform(low=0., high=1., size=(n, m)).astype(np.float32)
-b = np.random.uniform(low=0., high=1., size=(n, m)).astype(np.float32)
-c = np.random.uniform(low=0., high=1., size=(n, m)).astype(np.float32)
-
-ga = gpu.garray(a)
-gb = gpu.garray(b)
-gc = gpu.garray(c)
-
-print ga.T.dot(gb)
-print a.dot(b.T)
-
-print ga
-print gb
-print ga*gb
-print gc
-print ga-gb
-
-
-print max(ga,gb,gc)
-#print ga.as_numpy_array(dtype=np.float32) - a
+print np.shape(train_set)
+print np.shape(valid_set)
+print train_set[0][0]
+print np.shape(test_set)
