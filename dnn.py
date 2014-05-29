@@ -12,35 +12,38 @@ class nn_layer:
         self.p = p # piece group
         self.q = q # batch size
 
-        self.drop = 0.1 # dropout rate
-        
+        self.drop = 0.0 # dropout rate
+        self.learn = 0.01
+        self.l2reg = 0.9999
+
         # activation function
         self.f = lambda z: z
         # deriviative of activation function
         self.g = lambda z: 1
 
+        d = 0.01
         # weight matrix
-        self.w = gpu.garray(np.random.uniform(low=0., high=1., size=(m, n, p, 1)).astype(np.float32))
+        self.w = gpu.garray(np.random.uniform(low=-d, high=d, size=(m, n, p, 1)).astype(np.float32))
         # bias vector
-        self.b = gpu.garray(np.random.uniform(low=0., high=1., size=(1, n, p, 1)).astype(np.float32))
+        self.b = gpu.garray(np.random.uniform(low=-d, high=d, size=(1, n, p, 1)).astype(np.float32))
         
         # input of forward propagation
-        self.x = gpu.garray(np.random.uniform(low=0., high=1., size=(m, 1, 1, q)).astype(np.float32))
+        self.x = gpu.garray(np.random.uniform(low=-d, high=d, size=(m, 1, 1, q)).astype(np.float32))
         # output of forward propagation
-        self.s = gpu.garray(np.random.uniform(low=0., high=1., size=(1, n, 1, q)).astype(np.float32))
+        self.s = gpu.garray(np.random.uniform(low=-d, high=d, size=(1, n, 1, q)).astype(np.float32))
         # input of back propagation
-        self.d = gpu.garray(np.random.uniform(low=0., high=1., size=(1, n, 1, q)).astype(np.float32))
+        self.d = gpu.garray(np.random.uniform(low=-d, high=d, size=(1, n, 1, q)).astype(np.float32))
         # output of back propagation
-        self.e = gpu.garray(np.random.uniform(low=0., high=1., size=(m, 1, 1, q)).astype(np.float32))
+        self.e = gpu.garray(np.random.uniform(low=-d, high=d, size=(m, 1, 1, q)).astype(np.float32))
         # temporary array for error
-        self.u = gpu.garray(np.random.uniform(low=0., high=1., size=(m, n, p, 1)).astype(np.float32))
+        self.u = gpu.garray(np.random.uniform(low=-d, high=d, size=(m, n, 1, q)).astype(np.float32))
 
-        
-        # novelty key ****-> set self.t.size to (n, 1, p, 1)  ---> group max
+
+        # novelty key ****-> set self.t.size to (n, 1, p, 1)  ---> group max        
+        # mask for dropout
+        self.r = gpu.garray(np.random.uniform(low=0., high=1., size=(m, 1, 1, 1)).astype(np.float32)>self.drop)        
         # mask for piece group
         self.t = gpu.garray(np.random.randint(low=0,  high=2,  size=(1, n, p, q)).astype(np.float32)) 
-        # mask for dropout
-        self.r = gpu.garray(np.random.uniform(low=0., high=1., size=(m, 1, 1, 1)).astype(np.float32)>self.drop)
 
         # outward connections
         self.o = []
@@ -71,46 +74,35 @@ class nn_layer:
         for next_layer in self.o:
             if not self.o:break
             if self == next_layer.i[0]:
-                next_layer.x = self.s.reshape(self.n, 1, 1, self.q)
+                #print self.s.shape
+                next_layer.x = self.s.transpose(1,0,2,3)
+                #print self.s.shape
             else: 
-                next_layer.x += self.s.reshape(self.n, 1, 1, self.q)
+                next_layer.x += self.s.transpose(1,0,2,3)
 
     def backward(self):
-        self.e = gpu.sum(self.w * self.d * self.t , 1).reshape(self.m, 1, self.p, self.q) 
-        #self.z = self.w * self.d * self.g(self.x) * self.t * self.r
-        #self.e = gpu.sum(self.z, 1).reshape(self.m, 1, self.p, self.q)
-        self.e = gpu.sum(self.e ,2).reshape(self.m, 1, 1, self.q) * self.r * self.g(self.x) 
+        self.u = gpu.sum(self.w * self.t,2).reshape(self.m, self.n, 1, self.q)
+        self.e = gpu.sum(self.u * self.d ,1).reshape(self.m, 1, 1, self.q) * self.r * self.g(self.x) 
         for prev_layer in self.i:
             if not self.i:break
             if self == prev_layer.o[0]:
-                prev_layer.d = self.e.reshape(1, self.m, 1, self.q)
+                prev_layer.d = self.e.transpose(1,0,2,3)
             else:
-                prev_layer.d += self.e.reshape(1, self.m, 1, self.q)
-    
+                prev_layer.d += self.e.transpose(1,0,2,3)
+    def gpudot(A,B,dim):
+        dimA = np.shape(A)
+        b0,b1,b2,b3 = np.shape(B)
+        gpu.reshape(A)
+
+
     def update(self):
-        self.w += gpu.sum(self.d * self.t * self.f(self.x),3).reshape(self.m, self.n, self.p, 1)  * self.r 
-        self.b += gpu.sum(self.d * self.t,3).reshape(1, self.n, self.p, 1) 
-        
-
-a = nn_layer(100,100,3,10,name = '1')
-b = nn_layer(100,100,3,10,name = '2')
-c = nn_layer(100,100,2,5,name = '3')
-
-a.outward(b)
-b.outward(c)
-print a,np.shape(b.x),c
-
-for i in range(10):
-    print i
-    b.forward()
-    b.backward()
-    b.update()
-
-print a,np.shape(b.x),c
-
-
-A =  np.random.randint(0,5,(2,1,3))
-print A
-print A.reshape(1,2,3)
-#print ga.as_numpy_array(dtype=np.float32) - a
+        self.w *= self.l2reg
+        self.w -= gpu.sum(self.d * self.t * self.f(self.x),3).reshape(self.m, self.n, self.p, 1)  * self.r / self.q * self.learn
+        self.b *= self.l2reg
+        self.b -= gpu.sum(self.d * self.t,3).reshape(1, self.n, self.p, 1) /self.q * self.learn
+    
+    def load_input(self,x):
+        self.x = gpu.garray(x.reshape(self.m,1,1,self.q))
+    def load_output(self,x):
+        self.d = gpu.garray(x.reshape(1,self.n,1,self.q))
 
