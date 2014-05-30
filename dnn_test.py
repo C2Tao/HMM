@@ -11,32 +11,29 @@ f = gzip.open('mnist.pkl.gz', 'rb')
 train_set, valid_set, test_set = cPickle.load(f)
 f.close()
 
-print np.shape(train_set)
-print np.shape(valid_set)
-print np.shape(test_set)
+def parse_corpus(tset,name):
+    Y = np.zeros((len(tset[0]),10))
+    for j in range(len(tset[0])):
+        Y[j][tset[1][j]] = 1.0 
+    corpus = {'data': tset[0], 'label': Y, 'name': name}
+    return corpus
 
-print train_set[1][264]
-imgplot = plt.imshow(train_set[0][264].reshape(28,28))
-print train_set[0][0:100]
-#plt.show()
+
+corpus_train = parse_corpus(train_set,'train')
+corpus_test  = parse_corpus(test_set,'test')
+corpus_valid = parse_corpus(valid_set,'valid')
+
 
 
 nn = nn_network([28*28,100,10],100)
-
-Y = np.zeros((50000,10))
-#print np.shape(layer_three.s)
-#print np.shape(train_set[1][i*q:(i+1)*q])
-for j in range(50000):
-    Y[j][train_set[1][j]] = 1.0 
-
-corpus_train ={'data': train_set[0], 'label': Y}
 print nn.layer[0]
-print nn.layer[1]
+#print nn.layer[1]
 
 for i in range(1000):
     nn.train(corpus_train)
     if i%10==0:
         #print nn.layer[0].w[:5][:5]
+        nn.test(corpus_valid)
         nn.test(corpus_train)
 
 

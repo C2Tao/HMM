@@ -18,26 +18,30 @@ class nn_network:
             self.layer[i].add_next(self.layer[i+1])
         self.layer[0].f = lambda z: z
         self.layer[0].g = lambda z: 1.0
-        self.errfun = lambda x,y: gpu.sqrt((x-y)*(x-y))
+
+        #self.errfun = lambda x,y: gpu.sqrt((x-y)*(x-y))
         self.derrfun = lambda x,y: (x-y)/gpu.sqrt((x-y)*(x-y)+10**-7)
+        #self.derrfun = lambda x,y: x-y
         self.batch = batch
-        self.dropbatch = 0.9
+        self.dropbatch = 0.01
 
     def train(self, corpus):
         blist = np.random.permutation(len(corpus['label'])/self.batch)
         for i in blist:
             if np.random.uniform(0,1) < self.dropbatch: continue
             self.forward(corpus['data'][i*self.batch:(i+1)*self.batch])
-            self.backward(self.derrfun(self.layer[-1].s,corpus['label'][i*self.batch:(i+1)*self.batch]))
+            self.backward(self.derrfun(self.layer[-1].s, corpus['label'][i*self.batch:(i+1)*self.batch]))
+            #self.backward(self.error(self.layer[-1].s, corpus['label'][i*self.batch:(i+1)*self.batch]))
             self.update()
-
+    def error(x,y):
+        return x - y
     def test(self, corpus):
         correct = 0.0
         for i in range(len(corpus['label'])/self.batch):
             data = corpus['data'][i*self.batch:(i+1)*self.batch]
             self.forward(data)
             correct += np.sum([np.argmax(self.layer[-1].s,1) == np.argmax(corpus['label'][i*self.batch:(i+1)*self.batch],1)])
-        print "accuracy",str(correct/len(corpus['label']))
+        print corpus['name']+" accuracy:",str(correct/len(corpus['label']))
 
     def forward(self, x):
         self.layer[0].load_input(x)
@@ -63,14 +67,14 @@ class nn_layer:
         self.q = q # batch size
 
         self.drop = 0.0 # dropout rate
-        self.learn = 10**-5
+        self.learn = 10**-2
         self.l2reg = (1.0-10**-7)
 
         # activation function
-        self.f = lambda z: gpu.logistic(z)
+        self.f = lambda z: 1.0/(gpu.exp(-z)+1.0)
         #self.f = lambda z: z
         # deriviative of activation function
-        self.g = lambda z: gpu.logistic(z)*(1.0-gpu.logistic(z))
+        self.g = lambda z: self.f(z) *(1.0-self.f(z))
         #self.g = lambda z: 1.0
 
         d = 10**-5
@@ -164,15 +168,12 @@ class nn_layer:
         self.d = gpu.garray(x.reshape(self.q, self.n))
 
 class final_layer(nn_layer):
-    def load_output():
-        s
-    def update(self):
-        #self.w *= self.l2reg
-        #self.w /= gpu.sum(self.w*self.w,0)
-        self.w -= gpu.dot(self.f(self.x).T, self.d)  / self.q * self.learn
-        #self.e = gpu.dot(self.f(self.x).T, self.d)  
-        #self.e /= gpu.sum(self.e*self.e,0)
-        #self.w -= self.e/ self.q * self.learn
-        #self.w -= gpu.dot(self.x.T, self.d)  / self.q * self.learn
-        #self.b *= self.l2reg
-        self.b -= gpu.sum(self.d, 0) /self.q * self.learn        
+    def forward(self):
+        self.s = gpu.exp(gpu.dot(self.x,self.w) + self.b)
+        self.s /= gpu.sum(self.s,1)
+      
+class first_layer(nn_layer):
+    def __init__(self, m, n, q = 100, name=""):
+        nn_layer.__init__(self, m, n, q = 100, name="")
+        self.layer[0].f = lambda z: z
+        
