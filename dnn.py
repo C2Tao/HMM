@@ -64,12 +64,13 @@ class nn_network:
             self.layer[i+1].x = self.layer[i].s
     def backward(self, e):
         self.layer[-1].load_output(e)
-        for i in range(len(self.layer)):
-            self.layer[len(self.layer)-1 - i].backward()
+        for i in range(len(self.layer)-1,-1,-1):
+            self.layer[i].backward()
             if i==0: break
             self.layer[i-1].d = self.layer[i].e
     def update(self):
         for i in range(len(self.layer)):
+            #print i
             self.layer[i].update()
 
 
@@ -170,11 +171,11 @@ class nn_layer:
 
 class final_layer(nn_layer):
     def forward(self):
-        self.s = gpu.exp(gpu.dot(self.x,self.w) + self.b)
+        self.s = gpu.exp(gpu.dot(self.f(self.x),self.w) + self.b)
         self.s /= gpu.sum(self.s,1).reshape(self.q, 1)
         
 class first_layer(nn_layer):
-    def __init__(self, m, n, q = 100, name=""):
-        nn_layer.__init__(self, m, n, q = 100, name="")
+    def __init__(self, m, n, q , name=""):
+        nn_layer.__init__(self, m, n, q, name="")
         self.f = lambda z: z
         self.g = lambda z: 1.0

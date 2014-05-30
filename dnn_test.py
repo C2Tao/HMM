@@ -25,14 +25,15 @@ corpus_valid = parse_corpus(valid_set,'valid')
 
 
 
-nn = nn_network([28*28,10],100)
-print nn.layer[0]
+nn = nn_network([28*28,10,10],100)
+for layer in nn.layer:
+    print layer
 #print nn.layer[1]
 
 for i in range(1000):
     nn.train(corpus_train)
     if i%10==0:
-        #print nn.layer[0].w[:5][:5]
+        print nn.layer[0].w[:5]
         nn.test(corpus_valid)
         nn.test(corpus_train)
 
