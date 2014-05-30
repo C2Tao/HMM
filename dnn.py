@@ -13,14 +13,26 @@ class nn_network:
         #self.input_size  = layers[0]
         #self.output_size = layers[-1]
         self.shape = layers
-        self.layer = [nn_layer(layers[i],layers[i+1],batch,name=str(i)) for i in range(len(self.shape)-1)]
-        for i in range(len(self.layer)-1):
-            self.layer[i].add_next(self.layer[i+1])
-        self.layer[0].f = lambda z: z
-        self.layer[0].g = lambda z: 1.0
+
+        self.layer = []
+        for i in range(len(layers)-1):
+            if i==(len(layers)-2):                
+                self.layer += final_layer(layers[i],layers[i+1],batch,name=str(i)),
+                #print self.layer[0]
+                if i==0:
+                    self.layer[0].f = lambda z: z
+                    self.layer[0].g = lambda z: 1.0
+            elif i==0:
+                self.layer += first_layer(layers[i],layers[i+1],batch,name=str(i)),                
+            else:
+                self.layer += nn_layer(layers[i],layers[i+1],batch,name=str(i)),
+
+        
+        #for i in range(len(self.layer)-1):
+        #    self.layer[i].add_next(self.layer[i+1])
 
         #self.errfun = lambda x,y: gpu.sqrt((x-y)*(x-y))
-        self.derrfun = lambda x,y: (x-y)/gpu.sqrt((x-y)*(x-y)+10**-7)
+        #self.derrfun = lambda x,y: (x-y)/gpu.sqrt((x-y)*(x-y)+10**-7)
         #self.derrfun = lambda x,y: x-y
         self.batch = batch
         self.dropbatch = 0.01
@@ -30,11 +42,12 @@ class nn_network:
         for i in blist:
             if np.random.uniform(0,1) < self.dropbatch: continue
             self.forward(corpus['data'][i*self.batch:(i+1)*self.batch])
-            self.backward(self.derrfun(self.layer[-1].s, corpus['label'][i*self.batch:(i+1)*self.batch]))
-            #self.backward(self.error(self.layer[-1].s, corpus['label'][i*self.batch:(i+1)*self.batch]))
+            self.backward(self.layer[-1].s - corpus['label'][i*self.batch:(i+1)*self.batch])
             self.update()
+
     def error(x,y):
         return x - y
+
     def test(self, corpus):
         correct = 0.0
         for i in range(len(corpus['label'])/self.batch):
@@ -47,10 +60,14 @@ class nn_network:
         self.layer[0].load_input(x)
         for i in range(len(self.layer)):
             self.layer[i].forward()
+            if i==len(self.layer)-1: break
+            self.layer[i+1].x = self.layer[i].s
     def backward(self, e):
         self.layer[-1].load_output(e)
         for i in range(len(self.layer)):
             self.layer[len(self.layer)-1 - i].backward()
+            if i==0: break
+            self.layer[i-1].d = self.layer[i].e
     def update(self):
         for i in range(len(self.layer)):
             self.layer[i].update()
@@ -106,8 +123,8 @@ class nn_layer:
         # inward connections
         self.prev = []
 
-    def __repr__(self):
-        return "{}:({},{})x{}".format(self.name,str(self.m),str(self.n),str(self.q))
+    #def __repr__(self):
+    #    return "{}:({},{})x{}".format(self.name,str(self.m),str(self.n),str(self.q))
         #return self.name+':'+str(self.m)+','+str(self.n)+'x'+
     
     def add_next(self,mm_layer):
@@ -132,27 +149,11 @@ class nn_layer:
         #self.t = gpu.sum((self.w * self.x) + self.b,0).reshape(1, self.n, self.q)
         #self.s = gpu.max(self.t, 2).reshape(1, self.n, 1, self.q)
         #self.t = (self.s == self.t)
-        for next_layer in self.next:
-            if self == next_layer.prev[0]:
-                #print self.s.shape
-                #next_layer.x = gpu.garray(self.s,copy=False)
-                next_layer.x = self.s
-                #print self.s.shape
-            else:
-                break 
-                #next_layer.x += self.s.transpose(1,0,2,3)
 
     def backward(self):
         #self.u = gpu.sum(self.w * self.t,2).reshape(self.m, self.n, 1, self.q)
         self.e = gpu.dot(self.d,self.w.T) * self.g(self.x) 
         #self.e = gpu.dot(self.d,self.w.T) 
-        for prev_layer in self.prev:
-            if self == prev_layer.next[0]:
-                #prev_layer.d = gpu.garray(self.e,copy=False)
-                prev_layer.d = self.e
-            else:
-                break
-                #prev_layer.d += self.e.transpose(1,0,2,3)
 
     def update(self):
         #self.w /= gpu.sqrt(gpu.sum(self.w*self.w,0))
@@ -170,10 +171,10 @@ class nn_layer:
 class final_layer(nn_layer):
     def forward(self):
         self.s = gpu.exp(gpu.dot(self.x,self.w) + self.b)
-        self.s /= gpu.sum(self.s,1)
-      
+        self.s /= gpu.sum(self.s,1).reshape(self.q, 1)
+        
 class first_layer(nn_layer):
     def __init__(self, m, n, q = 100, name=""):
         nn_layer.__init__(self, m, n, q = 100, name="")
-        self.layer[0].f = lambda z: z
-        
+        self.f = lambda z: z
+        self.g = lambda z: 1.0

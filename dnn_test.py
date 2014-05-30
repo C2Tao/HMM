@@ -25,7 +25,7 @@ corpus_valid = parse_corpus(valid_set,'valid')
 
 
 
-nn = nn_network([28*28,100,10],100)
+nn = nn_network([28*28,10],100)
 print nn.layer[0]
 #print nn.layer[1]
 
