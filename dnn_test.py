@@ -1,6 +1,7 @@
 import gnumpy as gpu
 import numpy as np
 from dnn import nn_layer
+from dnn import nn_network
 import cPickle, gzip, numpy
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
@@ -16,18 +17,31 @@ print np.shape(test_set)
 
 print train_set[1][264]
 imgplot = plt.imshow(train_set[0][264].reshape(28,28))
+print train_set[0][0:100]
 #plt.show()
 
-q=100
 
-layer_one   = nn_layer(28*28,200,3,q)
-layer_two   = nn_layer(200,200,3,q)
-layer_three = nn_layer(200, 10,1,q)
+nn = nn_network([28*28,100,10],100)
 
-layer_one.outward(layer_three)
-#layer_two.outward(layer_three)
+Y = np.zeros((50000,10))
+#print np.shape(layer_three.s)
+#print np.shape(train_set[1][i*q:(i+1)*q])
+for j in range(50000):
+    Y[j][train_set[1][j]] = 1.0 
+
+corpus_train ={'data': train_set[0], 'label': Y}
+print nn.layer[0]
+print nn.layer[1]
+
+for i in range(1000):
+    nn.train(corpus_train)
+    if i%10==0:
+        #print nn.layer[0].w[:5][:5]
+        nn.test(corpus_train)
 
 
+
+'''
 for k in range(100):
     for i in range(50000/q):
         layer_one.load_input(gpu.garray(train_set[0][i*q:(i+1)*q]))
@@ -49,26 +63,29 @@ for k in range(100):
         #print layer_one.x[:10][:10]
         layer_three.load_output(error)
 
-        pred = np.argmax(layer_three.s,1).reshape(q)
-        answ = train_set[1][i*q:(i+1)*q].reshape(q)
-        #print pred
         #print layer_one.s
         #print layer_one.w
-        print float(sum(pred == answ))/q
+     
         #print layer_one 
         #print layer_two
-        #print layer_three 
-        print i
+        #print layer_three
+        if i==1:
+            pred = np.argmax(layer_three.s,1).reshape(q)
+            answ = train_set[1][i*q:(i+1)*q].reshape(q)
+            print float(sum(pred == answ))/q
+
         #print layer_one.w
 
 
         layer_three.backward()
         layer_two.backward()
         layer_one.backward()
-
-        layer_one.update()
-        layer_two.update()
         layer_three.update()
+        layer_two.update()
+        layer_one.update()
+        
+        
 
-
+    #print i
+'''
 
