@@ -23,22 +23,26 @@ corpus_train = parse_corpus(train_set,'train')
 corpus_test  = parse_corpus(test_set,'test')
 corpus_valid = parse_corpus(valid_set,'valid')
 
+'''
+z = np.arange(-5,5,0.001)
+y = gpu.logistic(gpu.garray(z))
+g = (1.0-y)*y
+imgplot = plt.plot(y.as_numpy_array())
+imgplot = plt.plot(g.as_numpy_array())
+plt.show()
+'''
 
-
-nn = nn_network([28*28,200,200,10],1000)
+nn = nn_network([28*28,1000,1000,10],100)
 for layer in nn.layer:
     print layer
-#print nn.layer[1]
-nn.sdainit_layer(corpus_train)
+#nn.sdainit_layer(corpus_train)
 
 for i in range(1000):
     nn.train(corpus_train)
     if i%10==0:
-        print nn.layer[-1].w[:5]
+        print nn.layer[-1].w[0]
         nn.test(corpus_valid)
-        nn.test(corpus_train)
-
-
+        #nn.test(corpus_train)
 
 '''
 for k in range(100):
