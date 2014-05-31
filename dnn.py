@@ -1,5 +1,7 @@
 import gnumpy as gpu
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 class nn_corpus:
     def __init__(self, train_set, valid_set, test_set):
@@ -77,6 +79,44 @@ class nn_network:
         for i in range(len(self.layer)):
             self.layer[i].dropout = dropout
 
+    def sdainit_layer(self,corpus):
+        lcorpus = {'data': corpus['data'],'label': corpus['data']}
+        for layer in self.layer:
+            tempnn = sda_network(layer)
+            
+            #print layer.w[0]
+            for i in range(1000):
+                tempnn.train(lcorpus)
+            
+            '''
+            print lcorpus['data']
+            print tempnn.layer[-1].s[0].reshape(28,28)
+            imgplot = plt.imshow(tempnn.layer[-1].s[0].reshape(28,28).as_numpy_array())
+            plt.colorbar()
+            plt.show()
+            '''
+            #print layer.w[0]
+
+            lcorpus = tempnn.test(lcorpus)
+            
+        
+class sda_network(nn_network):
+    def __init__(self,some_layer):
+        self.layer = [[],[]]
+        self.layer[0] = some_layer
+        self.layer[1] = nn_layer(some_layer.n,some_layer.m,some_layer.q)
+        self.layer[1].w = self.layer[0].w.transpose(1,0)
+        self.batch = some_layer.q
+        self.learn = some_layer.learn
+        self.dropbatch = 0.1
+
+    def test(self,corpus):
+        next_corpus= {'data': np.zeros([len(corpus['label']),self.layer[0].n])}    
+        for i in range(len(corpus['label'])/self.batch):
+            self.forward(corpus['data'][i*self.batch:(i+1)*self.batch])
+            #print next_corpus['data'][i*self.batch:(i+1)*self.batch].shape
+            next_corpus['data'][i*self.batch:(i+1)*self.batch] = self.layer[0].s.as_numpy_array()
+        return {'data': next_corpus['data'],'label': next_corpus['data']}
 class nn_layer:
     def __init__(self, m, n, q = 100, name=""):
         # name of layer
@@ -91,11 +131,11 @@ class nn_layer:
         self.l2reg = (1.0-10**-9)
 
         # activation function
-        self.f = lambda z: 1.0/(gpu.exp(-z)+1.0)
-        #self.f = lambda z: z
+        #self.f = lambda z: 1.0/(gpu.exp(-z)+1.0)
+        self.f = lambda z: z
         # deriviative of activation function
-        self.g = lambda z: self.f(z) *(1.0-self.f(z))
-        #self.g = lambda z: 1.0
+        #self.g = lambda z: self.f(z) *(1.0-self.f(z))
+        self.g = lambda z: 1.0
 
         d = 10**-5
         # weight matrix
@@ -155,9 +195,9 @@ class nn_layer:
     def update(self):
         self.w *= self.l2reg
         if self.dropout > 0:
-            self.w -= gpu.dot((self.f(self.x)* self.r).T, self.d) * self.learn
+            self.w -= gpu.dot((self.f(self.x)* self.r).T, self.d) * self.learn / self.q
         else:
-            self.w -= gpu.dot(self.f(self.x).T, self.d) * self.learn
+            self.w -= gpu.dot(self.f(self.x).T, self.d) * self.learn / self.q
         self.b *= self.l2reg
         self.b -= gpu.sum(self.d, 0) * self.learn
     
