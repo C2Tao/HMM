@@ -35,10 +35,11 @@ class nn_network:
         #self.derrfun = lambda x,y: (x-y)/gpu.sqrt((x-y)*(x-y)+10**-7)
         #self.derrfun = lambda x,y: x-y
         self.batch = batch
-        self.dropbatch = 0.01
+        self.dropbatch = 0.05
 
     def train(self, corpus):
         blist = np.random.permutation(len(corpus['label'])/self.batch)
+        self.setdrop(0.5)
         for i in blist:
             if np.random.uniform(0,1) < self.dropbatch: continue
             self.forward(corpus['data'][i*self.batch:(i+1)*self.batch])
@@ -50,6 +51,7 @@ class nn_network:
 
     def test(self, corpus):
         correct = 0.0
+        self.setdrop(0.0)
         for i in range(len(corpus['label'])/self.batch):
             data = corpus['data'][i*self.batch:(i+1)*self.batch]
             self.forward(data)
@@ -70,10 +72,10 @@ class nn_network:
             self.layer[i-1].d = self.layer[i].e
     def update(self):
         for i in range(len(self.layer)):
-            #print i
             self.layer[i].update()
-
-
+    def setdrop(self, dropout):
+        for i in range(len(self.layer)):
+            self.layer[i].dropout = dropout
 
 class nn_layer:
     def __init__(self, m, n, q = 100, name=""):
@@ -84,9 +86,9 @@ class nn_layer:
         #self.p = p # piece group
         self.q = q # batch size
 
-        self.drop = 0.0 # dropout rate
-        self.learn = 10**-2
-        self.l2reg = (1.0-10**-7)
+        self.dropout = 0.1 # dropout rate
+        self.learn = 10**-4
+        self.l2reg = (1.0-10**-9)
 
         # activation function
         self.f = lambda z: 1.0/(gpu.exp(-z)+1.0)
@@ -115,7 +117,8 @@ class nn_layer:
 
         # novelty key ****-> set self.t.size to (n, 1, p, 1)  ---> group max        
         # mask for dropout
-        #self.r = gpu.garray(np.random.uniform(low=0., high=1., size=(m, 1, 1)).astype(np.float32)>self.drop)        
+        self.r = gpu.garray(np.random.uniform(low=0., high=1., size=(self.m)).astype(np.float32)>self.dropout)/(1.0-self.dropout)
+        #print self.r       
         # mask for piece group
         #self.t = gpu.garray(np.random.randint(low=0,  high=2,  size=(1, n, q)).astype(np.float32)) 
 
@@ -137,37 +140,32 @@ class nn_layer:
         mm_layer.prev += self,
 
     def forward(self):
-        #self.x = self.x)
-        #self.s = gpu.sum(self.w * self.x + self.b,0).reshape(1, self.n, self.q)
-        #print gpu.dot(self.x,self.w).shape
-        #print self.b.shape
-        
-        #self.w /= gpu.sum(self.w*self.w,0)
-        self.s = gpu.dot(self.f(self.x),self.w) + self.b
-        #self.s = gpu.dot(self.x,self.w) + self.b
-
-        #print self.s.shape
-        #self.t = gpu.sum((self.w * self.x) + self.b,0).reshape(1, self.n, self.q)
-        #self.s = gpu.max(self.t, 2).reshape(1, self.n, 1, self.q)
-        #self.t = (self.s == self.t)
+        if self.dropout > 0:
+            self.r = gpu.garray(np.random.uniform(low=0., high=1., size=(self.m)).astype(np.float32)>self.dropout)/(1.0-self.dropout)
+            self.s = gpu.dot(self.f(self.x) * self.r, self.w) + self.b
+        else:
+            self.s = gpu.dot(self.f(self.x), self.w) + self.b
 
     def backward(self):
-        #self.u = gpu.sum(self.w * self.t,2).reshape(self.m, self.n, 1, self.q)
-        self.e = gpu.dot(self.d,self.w.T) * self.g(self.x) 
-        #self.e = gpu.dot(self.d,self.w.T) 
+        if self.dropout > 0:
+            self.e = gpu.dot(self.d,self.w.T) * self.g(self.x) * self.r
+        else:
+            self.e = gpu.dot(self.d,self.w.T) * self.g(self.x) 
 
     def update(self):
-        #self.w /= gpu.sqrt(gpu.sum(self.w*self.w,0))
         self.w *= self.l2reg
-        self.w -= gpu.dot(self.f(self.x).T, self.d)  / self.q * self.learn
-        #self.w -= gpu.dot(self.x.T, self.d)  / self.q * self.learn
+        if self.dropout > 0:
+            self.w -= gpu.dot((self.f(self.x)* self.r).T, self.d) * self.learn
+        else:
+            self.w -= gpu.dot(self.f(self.x).T, self.d) * self.learn
         self.b *= self.l2reg
-        self.b -= gpu.sum(self.d, 0) /self.q * self.learn
+        self.b -= gpu.sum(self.d, 0) * self.learn
     
     def load_input(self,x):
         self.x = gpu.garray(x.reshape(self.q, self.m))
     def load_output(self,x):
         self.d = gpu.garray(x.reshape(self.q, self.n))
+
 
 class final_layer(nn_layer):
     def forward(self):
